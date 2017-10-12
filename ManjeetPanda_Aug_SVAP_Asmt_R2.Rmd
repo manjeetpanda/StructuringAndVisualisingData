@@ -1,0 +1,142 @@
+---
+title: "ManjeetPanda_Aug_SVAP_Asmt_R2"
+author: "Manjeet Panda"
+date: "October 8, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+```{r}
+setwd("C:/Users/sg0949286/Documents/R/WorkSpace/SVAP")
+library(plyr)
+library(rvest)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(prophet)
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(mice)
+library(VIM)
+library(tidyr)
+library(pracma)
+library(scales)
+library(forecast)
+```
+
+##Frame the question:
+1. What are the different crops being grown in Odisha?
+2. What are the top crops grown in Odisha in each season in 2015?
+3. What is the most grown crop in Odisha?
+4. What could be predicted produce of the most grown crop in Odisha in 2016?
+
+Before that let's have a look at the structure and some of the snapshots of the raw data that we have.
+```{r}
+#Acquire Data
+getwd()
+raw_data <- read.csv("apy.csv", header = TRUE)
+str(raw_data)
+head(raw_data)
+tail(raw_data)
+raw_data$State_Name <- as.character(raw_data$State_Name)
+raw_data$District_Name <- as.character(raw_data$District_Name)
+raw_data$Season <- as.character(raw_data$Season)
+raw_data$Crop <- as.character(raw_data$Crop)
+raw_data$Season <-  gsub(" ",'',raw_data$Season)
+```
+
+Now, the crops being grown in Odisha are,
+```{r}
+raw_data_odisha = raw_data %>% filter(raw_data$State_Name == "Odisha")
+wordcloud(raw_data_odisha$Crop, max.words = 150, random.order = FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+```
+
+#Check for missing values (Data Refinement)
+```{r}
+md.pattern(raw_data_odisha)
+missing.values <- aggr(raw_data_odisha, col=c('navyblue','yellow'),
+                       numbers=TRUE, sortVars=TRUE,
+                       labels=names(raw_data_odisha), cex.axis=.7,
+                       gap=1, ylab=c("Missing data","Pattern"))
+```
+From the above plot, we infer that The missing values are only present in Production values and since they are only 0.038% of the total values, we will ignore all the missing values.
+
+```{r}
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$State_Name))
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$District_Name))
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$Crop_Year))
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$Season))
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$Crop))
+raw_data_odisha <- raw_data_odisha %>%  filter(!is.na(raw_data_odisha$Area))
+processed_data_odisha_NotNull <- raw_data_odisha %>% filter(!is.na(raw_data_odisha$Production))
+```
+
+After missing value treatment, let's verify if there are any more missing values
+```{r}
+missing.values <- aggr(processed_data_odisha_NotNull, col=c('navyblue','yellow'),
+                       numbers=TRUE, sortVars=TRUE,
+                       labels=names(processed_data_odisha_NotNull), cex.axis=.7,
+                       gap=1, ylab=c("Missing data","Pattern"))
+```
+
+from the graph it is clear that there are no more missing data.
+
+
+#What were the season wise top crops grown in Odisha in 2015?
+```{r}
+#Data Transformation and exploration
+processed_data_by_season <- aggregate(Production ~ (Crop_Year + Season + Crop),
+                                      data=processed_data_odisha_NotNull,
+                                      FUN=sum)
+processed_data_by_season_2015 <- processed_data_by_season %>%
+                                 filter(processed_data_by_season$Crop_Year == 2015)
+processed_data_by_season_2015 %>% 
+  group_by(Crop) %>%
+  arrange(desc(Production)) %>%
+  head(15) %>%
+  ggplot(aes(reorder(Crop, Production), Production, fill=Crop)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~Season)
+```
+
+
+From the above figure we conclude that Rice was the most widely produced crop in Odisha across seasons in 2015.
+
+#What is the forecast of rice production in 2016?
+We will create a timeseries and make forecasts using simple exponential smoothing and use Holt-Winters exponential smoothing for the same.
+```{r}
+#Model and Insight
+processed_data_Rice <- processed_data_odisha_NotNull %>%
+                       filter(processed_data_odisha_NotNull$Crop == "Rice")
+processed_data_year <- aggregate(Production ~ Crop_Year,
+                                      data=processed_data_Rice,
+                                      FUN=sum)
+time_series_temp <- processed_data_year %>%
+  mutate(date = paste("01","01",Crop_Year, sep = "-"))
+
+time_series <- time_series_temp[,-1]
+time_series <- time_series %>% select(date, Production)
+time_series$date <- as.Date(x = time_series$date, format = "%d-%m-%Y")
+time_series.Production <- as.ts(time_series$Production, start = c(1998,1), frequency = 12)
+plot.ts(time_series.Production)
+```
+The above graph shows us the annual trend of rice production in strating from 1998 till 2015.
+
+Now, the forecasting of rice production in coming years.
+```{r}
+#Communicate
+time_series.Production.Forecasts <- HoltWinters(time_series.Production, beta=FALSE, gamma=FALSE)
+plot(forecast(time_series.Production.Forecasts))
+
+```
+
+From the above plot, we can conclude that the rice production in 2016 will be 7000000 units with 80% prediction area between 5000000 units to 9000000 units and 95% prediction area between 4000000 units to 10000000 units.
+
