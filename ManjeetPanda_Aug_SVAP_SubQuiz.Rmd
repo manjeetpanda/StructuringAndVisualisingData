@@ -1,0 +1,109 @@
+---
+title: "ManjeetPanda_Aug_SVAP_SubQuiz"
+author: "Manjeet Panda"
+date: "October 12, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+```{r}
+setwd("C:/Users/sg0949286/Documents/R/WorkSpace/SVAP")
+library(plyr)
+library(rvest)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+movie.data <- read.csv("Movie-Ratings.csv", header = TRUE)
+```
+
+# 1. Number of movies released per year
+```{r}
+movie.data %>%
+  group_by(Year.of.release) %>%
+  summarise(n_distinct(Film)) -> NumFilm.Data.Yearly
+
+Plot.NumFilm.Data.Yearly <- 
+  ggplot(data = NumFilm.Data.Yearly,
+         aes(x = Year.of.release, y = `n_distinct(Film)`),
+         fill = `n_distinct(Film)`) +
+  geom_bar(stat = "identity", position = 'dodge', fill = "dodgerblue3") +
+  geom_text(aes(label=`n_distinct(Film)`), position=position_dodge(width=0.9), vjust=-0.25) +
+  labs(x = "Year of Release", y = "Number of Films")
+
+Plot.NumFilm.Data.Yearly 
+```
+
+#2. Year-wise number of movies in different genres
+```{r}
+movie.data %>%
+  group_by(Year.of.release,Genre) %>%
+  summarise(n_distinct(Film)) -> NumFilm.Genre.Yearly
+Plot.NumFilm.Genre.Yearly <- 
+  ggplot(data = NumFilm.Genre.Yearly,
+         aes(x = Year.of.release, y = `n_distinct(Film)`),
+         fill=factor(Genre)) +
+  geom_bar(stat = "identity", position = 'dodge') +
+  geom_text(aes(label=`n_distinct(Film)`), position=position_dodge(width=0.9), vjust=-0.25) +
+  labs(x = "Year of Release", y = "Number of Films") + 
+  aes(fill = Genre)
+Plot.NumFilm.Genre.Yearly
+```
+
+#3. Yearly Average Budget of Movies by Genre
+```{r}
+movie.data %>%
+  group_by(Year.of.release,Genre) %>%
+  summarise(mean_budget = mean(Budget..million...)) -> Genre.Yearly.MeanBudget
+
+Plot.Genre.Yearly.MeanBudget <- 
+  ggplot(data = Genre.Yearly.MeanBudget,
+         aes(x = Year.of.release, y = mean_budget),
+         fill=factor(Genre)) +
+  geom_bar(stat = "identity", position = 'dodge') +
+  labs(x = "Year of Release", y = "Average Annual Budget")  +  
+  aes(fill = Genre)
+Plot.Genre.Yearly.MeanBudget
+```
+
+#4. Top 20 highest budget movies and their critic rating
+```{r}
+require(data.table)
+Film.Data.High.Budget <- 
+  data.table(movie.data, key = "Rotten.Tomatoes.Ratings.." )
+  
+Film.Data.High.Budget <- tail(Film.Data.High.Budget, 20)
+Film.Data.High.Budget.Plot <- 
+  ggplot(Film.Data.High.Budget,
+         aes(x="", y=Rotten.Tomatoes.Ratings.., fill=Film))+
+  geom_bar(width = 1, stat = "identity") +
+  labs(y = "Critic Rating")
+Film.Data.High.Budget.Plot <- Film.Data.High.Budget.Plot + coord_polar("y", start=0)
+Film.Data.High.Budget.Plot
+```
+
+
+#5. Top 20 highest budget movies and their audience rating
+```{r}
+Film.Data.High.Budget.Aud.Plot <- 
+  ggplot(Film.Data.High.Budget,
+         aes(x="", y=Audience.Ratings.., fill=Film))+
+  geom_bar(width = 1, stat = "identity")+
+  labs(y = "Audience Rating")
+Film.Data.High.Budget.Aud.Plot <- Film.Data.High.Budget.Aud.Plot + coord_polar("y", start=0)
+Film.Data.High.Budget.Aud.Plot
+```
+
+#6 Corelation between Audience Rating and Critics Rating through scatter plot and linear regression
+```{r}
+ggplot(movie.data, aes(x = Rotten.Tomatoes.Ratings.., y = Audience.Ratings..)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  labs(x = "Critic Rating", y = "Audience Rating")
+```
+
